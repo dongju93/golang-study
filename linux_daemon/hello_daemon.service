@@ -1,0 +1,15 @@
+[Unit]
+Description=Hello Daemon Service
+After=network.target
+
+[Service]
+ExecStart=/home/custom_daemon/hello_daemon
+Restart=always
+User=root
+Group=root
+WorkingDirectory=/home/custom_daemon
+StandardOutput=file:/var/log/hello_daemon.log
+StandardError=file:/var/log/hello_daemon_error.log
+
+[Install]
+WantedBy=multi-user.target
