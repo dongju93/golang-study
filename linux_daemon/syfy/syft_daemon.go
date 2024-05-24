@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
 	"log"
 	"net/http"
@@ -24,42 +25,20 @@ func handleSBOM(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create the command without output redirection
+	// 동일한 경로에 있는 syft 바이너리 실행.
 	cmd := exec.Command("syft", "dir:/", "-o", "cyclonedx-json")
 
-	// Capture the output
+	// Output capture
 	output, err := cmd.Output()
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Error executing command: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	// Write the output to the response
+	// JSON 화 후 응답
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(output)
 }
-
-// Open the output file
-// outputFile, err := os.Create("syclonedx_sbom.json")
-// if err != nil {
-// 	http.Error(w, fmt.Sprintf("Error creating output file: %v", err), http.StatusInternalServerError)
-// 	return
-// }
-// defer outputFile.Close()
-
-// Redirect the output to the file
-// cmd.Stdout = outputFile
-// cmd.Stderr = outputFile
-
-// Run the command
-// 	err = cmd.Run()
-// 	if err != nil {
-// 		http.Error(w, fmt.Sprintf("Error executing command: %v", err), http.StatusInternalServerError)
-// 		return
-// 	}
-
-// 	fmt.Fprintln(w, "SBOM generation command executed successfully.")
-// }
 
 func main() {
 	// "/hello" 경로로 요청이 올 때 handleHello 함수가 실행됩니다.
@@ -67,10 +46,19 @@ func main() {
 	// "/sbom" 경로로 요청이 올 때 handleSBOM 함수가 실행됩니다.
 	http.HandleFunc("/sbom", handleSBOM)
 
-	// 8080 포트에서 HTTP 서버를 시작합니다.
+	tlsConfig := &tls.Config{
+		MinVersion: tls.VersionTLS13, // 최소 TLS 버전을 1.3으로 설정
+	}
+
+	server := &http.Server{
+		Addr:      ":8064",
+		TLSConfig: tlsConfig,
+	}
+
+	// 8064 포트에서 HTTP 서버를 시작합니다.
 	go func() {
 		log.Println("Starting server on :8064")
-		if err := http.ListenAndServe(":8064", nil); err != nil {
+		if err := server.ListenAndServeTLS("cert/cert.pem", "cert/private.key"); err != nil {
 			log.Fatalf("ListenAndServe: %v", err)
 		}
 	}()
@@ -82,4 +70,8 @@ func main() {
 	// 신호가 수신될 때까지 대기합니다.
 	<-quit
 	log.Println("Shutting down server...")
+	if err := server.Close(); err != nil {
+		log.Fatalf("Server Close: %v", err)
+	}
+
 }
